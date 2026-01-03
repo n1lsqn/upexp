@@ -109,6 +109,126 @@ async function handleParseUnityPackage(
   });
 }
 
+async function handleOpenOutputDirectory() {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openDirectory'], // ディレクトリを選択するプロパティ
+  });
+  if (!canceled) {
+    return filePaths[0];
+  }
+  return null;
+}
+
+// ヘルパー関数: パスが選択されたパスのリストに含まれているか、またはその子孫であるかをチェック
+function isPathSelected(fullPath: string, selectedPaths: Set<string>): boolean {
+  if (selectedPaths.has(fullPath)) {
+    return true;
+  }
+  // 選択されたパスのいずれかがこのパスの親ディレクトリであるかチェック
+  for (const selectedPath of selectedPaths) {
+    if (fullPath.startsWith(selectedPath + '/') && selectedPath !== fullPath) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// 実際の解凍ロジックは後で実装
+async function handleExtractFiles(
+  _event: Electron.IpcMainInvokeEvent,
+  unityPackagePath: string,
+  selectedPathsArray: string[],
+  outputPath: string,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const selectedPaths = new Set(selectedPathsArray);
+
+    const stream = fs.createReadStream(unityPackagePath);
+    const gunzip = zlib.createGunzip();
+    const extract = tar.extract();
+
+    const assetDataMap = new Map<string, { header: tar.Headers; data?: Buffer; actualPath?: string }>();
+    const pathnameContents = new Map<string, string>();
+
+    extract.on('entry', async (header, entryStream, next) => {
+      const guidMatch = header.name.match(/^([0-9a-fA-F]{32})\//);
+      const guid = guidMatch ? guidMatch[1] : null;
+
+      if (!guid) {
+        entryStream.on('end', () => next());
+        entryStream.resume();
+        return;
+      }
+
+      if (header.name.endsWith('/pathname')) {
+        let content = '';
+        entryStream.on('data', (chunk) => (content += chunk.toString()));
+        entryStream.on('end', () => {
+          pathnameContents.set(guid, content.trim());
+          next();
+        });
+      } else if (header.name.endsWith('/asset')) {
+        const chunks: Buffer[] = [];
+        entryStream.on('data', (chunk) => chunks.push(chunk));
+        entryStream.on('end', () => {
+          assetDataMap.set(guid, {
+            header: header,
+            data: Buffer.concat(chunks),
+            actualPath: undefined,
+          });
+          next();
+        });
+      } else {
+        entryStream.on('end', () => next());
+        entryStream.resume();
+      }
+    });
+
+    extract.on('finish', async () => {
+      for (const [guid, entry] of assetDataMap) {
+        if (pathnameContents.has(guid)) {
+          entry.actualPath = pathnameContents.get(guid)!;
+        }
+      }
+
+      const extractPromises: Promise<void>[] = [];
+
+      for (const [guid, entry] of assetDataMap) {
+        const fullActualPath = entry.actualPath;
+        if (!fullActualPath || !entry.data) continue;
+
+        if (isPathSelected(fullActualPath, selectedPaths)) {
+          extractPromises.push(new Promise<void>((resolveEntry, rejectEntry) => {
+            const outputFilePath = path.join(outputPath, fullActualPath);
+            const outputDirPath = path.dirname(outputFilePath);
+
+            fs.mkdir(outputDirPath, { recursive: true }, (err) => {
+              if (err) return rejectEntry(err);
+              fs.writeFile(outputFilePath, entry.data!, (err) => {
+                if (err) return rejectEntry(err);
+                resolveEntry();
+              });
+            });
+          }));
+        }
+      }
+
+      try {
+        await Promise.all(extractPromises);
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+
+    extract.on('error', reject);
+    gunzip.on('error', reject);
+    stream.on('error', reject);
+
+    stream.pipe(gunzip).pipe(extract);
+  });
+}
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -138,6 +258,12 @@ const createWindow = () => {
 app.on('ready', () => {
   ipcMain.handle('dialog:openFile', handleFileOpen);
   ipcMain.handle('unitypackage:parse', handleParseUnityPackage);
+  ipcMain.handle('dialog:openDirectory', handleOpenOutputDirectory);
+  ipcMain.handle('unitypackage:extract', handleExtractFiles);
+  ipcMain.handle('path:dirname', (_event, filePath: string) => {
+    return path.dirname(filePath);
+  });
+  
   createWindow();
 });
 
