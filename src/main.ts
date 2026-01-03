@@ -5,7 +5,7 @@ import zlib from 'node:zlib';
 import tar from 'tar-stream';
 import started from 'electron-squirrel-startup';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// Windowsでのインストール/アンインストール時にショートカットを作成/削除するのを処理します。
 if (started) {
   app.quit();
 }
@@ -187,13 +187,16 @@ async function handleExtractFiles(
     extract.on('finish', async () => {
       for (const [guid, entry] of assetDataMap) {
         if (pathnameContents.has(guid)) {
-          entry.actualPath = pathnameContents.get(guid)!;
+          const actualPath = pathnameContents.get(guid);
+          if (actualPath) {
+            entry.actualPath = actualPath;
+          }
         }
       }
 
       const extractPromises: Promise<void>[] = [];
 
-      for (const [guid, entry] of assetDataMap) {
+      for (const entry of assetDataMap.values()) {
         const fullActualPath = entry.actualPath;
         if (!fullActualPath || !entry.data) continue;
 
@@ -204,10 +207,16 @@ async function handleExtractFiles(
 
             fs.mkdir(outputDirPath, { recursive: true }, (err) => {
               if (err) return rejectEntry(err);
-              fs.writeFile(outputFilePath, entry.data!, (err) => {
-                if (err) return rejectEntry(err);
+              if (entry.data) {
+                fs.writeFile(outputFilePath, entry.data, (err) => {
+                  if (err) return rejectEntry(err);
+                  resolveEntry();
+                });
+              } else {
+                // entry.data が存在しない場合、何もしないか、エラーを報告することができます。
+                // ここでは、単に成功として解決します。
                 resolveEntry();
-              });
+              }
             });
           }));
         }
@@ -230,7 +239,7 @@ async function handleExtractFiles(
 }
 
 const createWindow = () => {
-  // Create the browser window.
+  // ブラウザウィンドウを作成します。
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -239,7 +248,7 @@ const createWindow = () => {
     },
   });
 
-  // and load the index.html of the app.
+  // そして、アプリの index.html をロードします。
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
@@ -248,13 +257,12 @@ const createWindow = () => {
     );
   }
 
-  // Open the DevTools.
+  // DevToolsを開きます。
   mainWindow.webContents.openDevTools();
 };
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+// このメソッドは、Electronの初期化が完了し、ブラウザウィンドウを作成する準備ができたときに呼び出されます。
+// 一部のAPIは、このイベントが発生した後にのみ使用できます。
 app.on('ready', () => {
   ipcMain.handle('dialog:openFile', handleFileOpen);
   ipcMain.handle('unitypackage:parse', handleParseUnityPackage);
@@ -267,9 +275,7 @@ app.on('ready', () => {
   createWindow();
 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// すべてのウィンドウが閉じたときに終了します（macOSを除く）。macOSでは、アプリケーションとそのメニューバーは、ユーザーがCmd + Qで明示的に終了するまでアクティブなままになるのが一般的です。
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
@@ -277,12 +283,11 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
+  // OS Xでは、ドックアイコンがクリックされ、他のウィンドウが開いていないときに、アプリでウィンドウを再作成するのが一般的です。
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
+// このファイルには、アプリの残りの特定のメインプロセスコードを含めることができます。
+// それらを別のファイルに入れて、ここでインポートすることもできます。

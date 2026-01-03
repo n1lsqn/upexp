@@ -36,7 +36,7 @@ function App() {
   }, [parsedData]);
 
   // ファイルパスを受け取って解析する共通ロジック
-  const processFile = async (filePath: string) => { // Rename 'path' to 'filePath' to avoid shadowing global 'path' module if it were available
+  const processFile = async (filePath: string) => { // グローバルな 'path' モジュールが利用可能な場合にシャドウイングを避けるため、'path' を 'filePath' に名前変更
     setFilePath(filePath);
     if (filePath) {
       console.log('Processing file:', filePath);
@@ -106,7 +106,7 @@ function App() {
 
   return (
     <div className="flex h-screen bg-gray-800 text-white">
-      {/* Sidebar for File Tree */}
+      {/* ファイルツリーのサイドバー */}
       <div className="w-1/3 border-r border-gray-700 p-4 overflow-y-auto">
         <h2 className="text-lg font-bold mb-4">Package Contents</h2>
         {parsedData && parsedData.children ? (
@@ -116,7 +116,7 @@ function App() {
         )}
       </div>
 
-      {/* Main Content Area */}
+      {/* メインコンテンツエリア */}
       <div className="w-2/3 p-4 flex flex-col">
         <div className="flex-grow flex items-center justify-center w-full h-full">
           <div className="text-center">
@@ -134,7 +134,7 @@ function App() {
           </div>
         </div>
 
-        {/* Output Directory & Extract Button */}
+        {/* 出力ディレクトリと展開ボタン */}
         <div className="mt-4 p-4 border-t border-gray-700">
           <h3 className="text-lg font-bold mb-2">Extraction Options</h3>
           <div className="flex items-center space-x-2">
