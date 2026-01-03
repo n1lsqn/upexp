@@ -1,0 +1,29 @@
+name: Build Electron App
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18' # Specify a version compatible with your project
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build executable
+      run: npm run make
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: upexp-installer
+        path: out/make/squirrel.windows/x64/*.exe
