@@ -43,8 +43,10 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
+    "@types/tar-stream": "^3.1.4",
     "electron-squirrel-startup": "^1.0.1",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "tar-stream": "^3.1.7"
   }
 }

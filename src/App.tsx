@@ -1,22 +1,16 @@
 import React, { useState } from 'react';
-
-// ファイルツリーのノードの型定義 (仮)
-interface FileNode {
-  name: string;
-  type: 'file' | 'directory';
-  children?: FileNode[];
-}
+import FileTree from './components/FileTree';
+import type { FileNode } from './components/FileTree';
 
 function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
-  const [parsedData, setParsedData] = useState<FileNode | null>(null); // 解析結果を保持
+  const [parsedData, setParsedData] = useState<FileNode | null>(null);
 
   const handleSelectFile = async () => {
     const path = await window.electronAPI.openFile();
     setFilePath(path);
     if (path) {
       console.log('Selected file:', path);
-      // parseUnityPackageを呼び出す
       const result = await window.electronAPI.parseUnityPackage(path);
       setParsedData(result);
       console.log('Parsed data:', result);
@@ -28,11 +22,8 @@ function App() {
       {/* Sidebar for File Tree */}
       <div className="w-1/3 border-r border-gray-700 p-4 overflow-y-auto">
         <h2 className="text-lg font-bold mb-4">Package Contents</h2>
-        {parsedData ? (
-          // ここにFileTreeコンポーネントを配置する予定
-          <pre className="text-sm bg-gray-700 p-2 rounded overflow-x-auto">
-            {JSON.stringify(parsedData, null, 2)}
-          </pre>
+        {parsedData && parsedData.children ? (
+          <FileTree nodes={parsedData.children} />
         ) : (
           <p className="text-gray-400">Upload a file to see its contents.</p>
         )}
